@@ -1,0 +1,2364 @@
+---
+title: 'Assessing Pregnancy Risk: ML Modeling and Evaluation'
+author: "Kaustubh Pachpande"
+date: "Summer 2024"
+output:
+  pdf_document: 
+    
+    toc: true
+    toc_depth: 2
+    number_sections: true
+  html_notebook: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+subtitle: DA5030
+---
+
+# Introduction
+
+Pregnancy represents a significant and transformative period in a woman's life. However, it also entails various risks and challenges for both the mother and her unborn child. Accurately predicting and managing these risks is essential for ensuring a safe and healthy pregnancy, which is the aim of this project.
+
+## Project Objective
+
+The primary objective of this project is to develop a predictive model to assess the 'Risk Level' of maternal health based on various health indicators (or physiological factors like age, blood sugar, body temp etc). By accurately predicting 'Risk levels', healthcare providers can take timely and appropriate actions to mitigate risks, thus improving maternal health outcomes.
+
+## Business Goals
+
+1. **Improve Maternal Health Outcomes**: By identifying high-risk pregnancies early, healthcare providers can offer targeted interventions, thereby reducing maternal mortality rates.
+2. **Support Decision Making**: Provide healthcare professionals with a reliable tool to aid in decision-making processes related to maternal health.
+
+## Success Criteria
+
+The success of this project will be evaluated based on the following criteria:
+
+1. **Accuracy of Predictions**: The predictive model should achieve a high level of accuracy in classifying the risk levels (low, mid, high).
+2. **Practical Applicability**: The model should be easy to interpret and implement. 
+3. **Improvement in Health Outcomes**: Ultimately, this project would be deemed successful after a demonstrable improvement in maternal health outcomes as a result of implementing the predictive model.
+
+## Dataset Description
+
+The dataset used for this project is in CSV format and was obtained from - [here](https://archive.ics.uci.edu/dataset/863/maternal+health+risk) ie., the UCI Machine Learning Repository. The dataset contains health records collected from various hospitals, community clinics, and maternal health care centers through an IoT-based risk monitoring system. It includes 1014 instances with the following features:
+
+- **Age**: Age of the patient
+- **SystolicBP**: Systolic Blood Pressure
+- **DiastolicBP**: Diastolic Blood Pressure
+- **BS**: Blood Sugar
+- **BodyTemp**: Body Temperature
+- **HeartRate**: Heart Rate
+- **RiskLevel**: Risk level of Maternal health (target variable)
+
+The target variable 'Risklevel' has 3 classes namely "low risk", "mid risk", and "high risk". 
+
+# Installing Required Packages
+
+We will first check if the packages required for the project are installed, and if not we proceed to install them. 
+
+```{r installingPackages, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+
+# 1. Checking if 'psych' package is already installed (for 'pairs.panels' function)
+
+package_name <- "psych"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(psych)
+
+# 2. Checking if 'e1071' package is already installed (for 'skewness' function)
+
+package_name <- "e1071"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(e1071)
+
+# 3. Checking if 'MASS' package is already installed (for box-cox transformation)
+
+package_name <- "MASS"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(MASS)
+
+# 4. Checking if 'class' package is already installed (for kNN models)
+
+package_name <- "class"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(class)
+
+# 5. Checking if 'caret' package is already installed (for stratified sampling)
+
+package_name <- "caret"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(caret)
+
+
+# 6. Checking if 'nnet' package is already installed (for Logistic regression models)
+
+package_name <- "nnet"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(nnet)
+
+# 7. Checking if 'rpart' package is already installed (for decision tree models)
+
+package_name <- "rpart"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(rpart)
+
+# 8. Checking if 'ipred' package is already installed (for bagging)
+
+package_name <- "ipred"
+
+if (!require(package_name, 
+             character.only = T, 
+             warn.conflicts = F,
+             quietly = T)) {
+    install.packages(package_name, dependencies = TRUE)
+}
+
+library(ipred)
+
+
+```
+
+# Data Acquisition
+
+Next, we load the data set from a URL and then import it into a data frame using the `read.csv` function.
+
+```{r dataLoading&Acquisition, echo=FALSE}
+
+# Loading data from URL
+
+m_url <- "https://drive.google.com/uc?export=download&id=1CRGSjTMRDlYKEkRtjvwvnJ0Stn6BDTsC"
+
+# Importing data into a data frame
+
+mat_df <- read.csv(m_url,
+               header = TRUE,
+               stringsAsFactors = TRUE)
+
+# Checking imported data set using head()
+
+head(mat_df, 3)
+
+```
+We can see that the CSV file was successfully imported into a data frame. Next, we proceed to explore the data set.
+
+# Data Exploration
+
+## Data Structure Overview
+
+We first inspect the data set using `str()` and `summary()`
+
+```{r str}
+
+str(mat_df)
+
+```
+```{r summary}
+
+summary(mat_df)
+
+```
+
+Some important observations include:
+1. Data frame has 1014 observations and 7 features (including target variable).
+2. All predictor variables are continuous features.
+3. `str` shows The target variable having levels as high-low-mid to be 1-2-3. We will level them appropriately as low-mid-high to be 1-2-3 so that the ordering matches the intended ordinal relationship.
+3. The `summary` function shows no missing values. We will confirm this during Data preparation. 
+4. The minimum 'HeartRate' is shown to be 7, which is not possible. This might be a data entry error and we need to identify these observations and handle them either via deletion/imputation.
+5. The minimum 'Age' is shown to be 10, and maximum age to be pregnant is shown to be 70. This might be possible in rare cases, but would still be uncommon. We will not impute these values as they might be true.
+
+## Data Exploratory Plots
+
+1. Using a pie chart, we will first check how classes within the target variable are proportioned.
+2. After that we will use box plots for outlier analysis of continuous features. We will further check the number of outliers for each continuous column.
+3. We will use`pairs.panels` function to check for correlation and collinearity between features, and use Shapiro Wilk test to determine normality of the data.
+
+### Distribution of Target Variable
+
+Comparing the different classes of Pregnancy Risk levels (Low risk, Mid risk, High risk) using a pie chart:
+
+```{r pieChart, echo=FALSE}
+
+# Calculating percentages of each class within target variable 
+
+percent_dist_target <- prop.table(table(mat_df$RiskLevel))*100
+
+# Plotting pie chart
+
+pie(percent_dist_target,
+    main = "Pregnancy Risk Level Entries",
+    col = rev(heat.colors(length(percent_dist_target))),
+    labels = paste(names(percent_dist_target), "\n", round(percent_dist_target, 1), "%"))
+
+```
+
+We can see that majority entries are of low-risk pregnancy levels, with mid-risk and high-risk levels lower in comparison.
+
+### Detecting Outliers in the Data Set
+
+We will analyze continuous features using box plots to check for outliers:
+```{r combinedBoxplot, echo=FALSE}
+
+# Creating boxplot of continuous features
+
+boxplot(mat_df[,-7],
+        main = "Boxplots of Continuous Features",
+        xlab = "Features",
+        ylab = "Values",
+        col = "lightblue",
+        xaxt = "n")
+
+# Defining x-axis labels
+
+x_labels <- c("Age", "SystolicBP", "DiastolicBP", "BS", "BodyTemp", "HeartRate")
+
+# Adding slanted x-axis labels
+
+text(x = 1:6, y = par("usr")[3] - 7, labels = x_labels, srt = 45, adj = 1, xpd = TRUE)
+
+```
+
+We notice that 'BS' (Blood Sugar) and 'BodyTemp' have many outliers. Additionally. 'HeartRate' can be seen to have an outlier which probably relates to the minimum value of 7 as identified earlier.
+
+We will draw boxplots of 'BS' (Blood Sugar) and 'BodyTemp' individually for better clarity:
+```{r boxplot-BS&Bodytemp, echo=FALSE}
+
+# Creating boxplot of BS (Blood Sugar) 
+
+boxplot(mat_df$BS,
+        main = "Boxplots of Continuous Features",
+        xlab = "BloodSugar",
+        ylab = "Values",
+        col = "lightblue")
+
+# Creating boxplot of BodyTemp
+
+boxplot(mat_df$BodyTemp,
+        main = "Boxplots of Continuous Features",
+        xlab = "Body Temperature",
+        ylab = "Values",
+        col = "lightblue")
+
+```
+
+We can notice that there are many outliers for both of these columns. As the predictor features represent physiological data, these values can have abnormal values in rare cases, which might have a significant effect on the target variable. 
+
+We will further identify the number of outliers for each column by assuming that any value that deviates from mean by more than 3 standard deviations is an outlier.  
+```{r numberOfOutliers, echo=FALSE}
+
+# Creating a 'for' loop that gives number of outliers as an output 
+# for each column using z-score standardization method
+
+for(i in 1:ncol(mat_df[,-7])){
+  z <- c(NA)
+  m <- mean(mat_df[,i])
+  sd <- sd(mat_df[,i])
+  
+  for(j in 1:nrow(mat_df)){
+    z[j] <- abs((mat_df[j,i] - m))/sd
+  }
+  
+ ## Instances beyond z = 3 considered as outliers
+  
+  rowpos <-which(z>3)
+  out <- length(rowpos)
+  
+  print(paste0(names(mat_df)[i], " Column", " has ", out, " outliers"))
+}
+
+```
+We observe that 'BS' column (ie., Blood Sugar) and 'BodyTemp' have a 22 and 13 outliers respectively. 'HeartRate' column  has 2 outliers which most probably represent the erroneous minimum value of 7. We will handle these during Data Preparation.
+
+### Correlation & Collinearity
+
+Next, we analyze our data using `pairs.panels()` to check for correlations between individual features, and identify which predictor features are highly correlated.
+
+```{r correlation}
+
+pairs.panels(mat_df)
+
+```
+
+We notice that out of all the predictor features, 'SystolicBP' and 'DiastolicBP' are highly correlated to each other. This can be an issue for logistic regression models. We will combine them to create a new derived feature which will eliminate the correlation and better represent both the features.
+
+We further notice that the predictor features have correlations with the target variable in the range of -0.11 to -0.48 (weak to moderate correlation to target variable).
+
+We also observe that almost all features show skew in their distribution. Additionally, 'BodyTemp' shows an almost dominant single value in it's distribution. We will explore this further. First, we will visually inspect normality of each column using histograms and determine normality using the Shapiro-Wilk test.
+
+### Evaluation of Distribution
+
+Inspecting normality visually using histograms:
+```{r histograms, echo=FALSE}
+
+par(mfrow = c(2, 3))
+
+for (feature in names(mat_df[,-7])) {
+  hist(mat_df[[feature]], main = feature, xlab = feature, col = "skyblue", border = "black")
+}
+
+```
+
+We can observe that all distributions show skew, and that none of them can be considered fairly normal. 
+We also notice that 'BodyTemp' is dominated by values that occupy the minimum value of the column. This might make it harder to transform it to a normal distribution as any transformed distribution will have a single dominant value.
+
+We proceed to determine normality of each column using the Shapiro-Wilk test.
+```{r shapiroWilk, echo=FALSE}
+
+# Testing normality of columns using Shapiro Wilk test
+
+for(i in 1:ncol(mat_df[,-7])){
+  
+  shapiro.wilk <- shapiro.test(mat_df[,i])
+  
+  if (shapiro.wilk$p.value < 0.05) {
+    print(paste0("Column named: ",
+                 colnames(mat_df[i]),
+                 " is non normal as determined by the Shapiro Wilk test"))
+  }
+}
+
+```
+We can see that using the Shapiro-Wilk test, none of the features are normally distributed. We will transform these features during the data preparation step using log, inverse, square-root, or box-cox transformation and attempt to normalize the distribution.
+
+# Data Cleaning & Shaping
+
+Next, we proceed to data cleaning and shaping. We will first rename levels appropriately as low risk - mid risk - high risk so that the ordering matches the intended ordinal relationship.
+
+```{r renamingLevels}
+
+mat_df$RiskLevel <- factor(mat_df$RiskLevel, 
+                           levels = c("low risk", "mid risk", "high risk"))
+
+```
+
+Next we will identify and remove duplicates, if any, from the data frame:
+
+```{r identifyingDuplicates}
+
+# Identifying duplicates (not including first occurence)
+
+dup_df <- duplicated(mat_df)
+
+# Identifying number of duplicates 
+
+total_dup <- nrow(mat_df[dup_df,])
+
+# Creating new data frame without duplicates
+
+mat_df_uniq <-  unique(mat_df)
+
+```
+
+We notice that the data frame has `r total_dup` duplicates. This is a significant number of duplicates which should be removed to prevent it from affecting any analysis. We thus create a data set called 'mat_df_uniq' which has no duplicates.
+
+Further in the project, we will create two more data sets to have a total of three data sets:
+1. 'mat_df_uniq' - Original data set without any imputations
+2. 'mat_df_io' - containing Imputed Outliers, and 
+3. 'mat_df_im' - containing Imputed Missing values.
+
+The objective of creating 'mat_df_io' and comparing it with the original 'mat_df_uniq' data set is because in a health care setting the values shown as outliers can be very significant in determining the target variable and thus shouldn't be tampered with. We will still impute them and compare it with original.
+
+The objective of creating 'mat_df_im' and comparing it with the original 'mat_df_uniq' data frame is because during data exploration we could identify that there were no missing values. We will thus randomly introduce missing values and impute them appropriately, and then compare it with the original data frame to see any effect of random imputations.
+
+## Handling Outliers
+
+As identified during Data Exploration, outliers were present in 'BS' (BloodSugar), 'BodyTemp', and 'HeartRate'. The values might change after we removed the duplicates. We will again identify the outliers and handle them appropriately:
+
+```{r identifyingOutliers, echo=FALSE}
+
+# Identifying outliers again after removing duplicates using z-score standardization method
+
+for(i in 1:ncol(mat_df_uniq[,-7])){
+  z <- c(NA)
+  m <- mean(mat_df_uniq[,i])
+  sd <- sd(mat_df_uniq[,i])
+  
+  for(j in 1:nrow(mat_df_uniq)){
+    z[j] <- abs((mat_df_uniq[j,i] - m))/sd
+  }
+  
+  ## Instances beyond z = 3 considered as outliers
+  
+  rowpos <- which(z>3)
+  out <- length(rowpos)
+  value <- mat_df_uniq[,i]
+  value2 <- value[rowpos]
+  
+  if(out > 0){
+    
+  print(paste0(names(mat_df_uniq)[i],
+               " Column has ",
+               out,
+               " outliers having values - ",
+               paste0(value2, collapse = ",")))
+    
+  } else if(out == 0){
+    
+    print(paste0(names(mat_df_uniq)[i], " Column has no outliers"))
+    
+  }
+}
+
+```
+1. We see that the number of outliers have lessened in number. 
+2. Additionally, outlier of 'HeartRate' column is indeed the erroneous value of 7. We will impute this with the median in the original dataset (mat_df_uniq). 
+3. Regarding outliers of 'BS' (BloodSugar) and 'BodyTemp', we will create another dataset 'mat_df_io' where we Impute Outliers of these two columns with the median (imputation done with median since the distribution for both these columns isn't normal). 
+
+```{r imputingOutliers (mat_df_io), echo=FALSE}
+
+# Imputing outlier of 'HeartRate' column with median
+
+mat_df_uniq$HeartRate[which(mat_df_uniq$HeartRate==7)] <- median(mat_df_uniq$HeartRate)
+
+# Creating new data frame called 'mat_df_io'
+
+mat_df_io <- mat_df_uniq
+
+# Obtaining column numbers for columns named 'BS' and 'BodyTemp'
+
+col_of_interest <- c("BS", "BodyTemp")
+column_numbers <- which(names(mat_df_io) %in% col_of_interest)
+
+# Imputing outliers of 'BS' (Blood Sugar) and 'BodyTemp'
+
+for(i in column_numbers){
+  z <- c(NA)
+  m <- mean(mat_df_io[,i])
+  sd <- sd(mat_df_io[,i])
+  med <- median(mat_df_io[,i])
+  
+  for(j in 1:nrow(mat_df_io)){
+    z[j] <- abs((mat_df_io[j,i] - m))/sd
+    
+  }
+  
+  ## Imputing outliers (having z>3) with median
+  
+  mat_df_io[which(z>3),i] <- med
+}
+
+# Displaying first 3 rows of 'mat_df_io'
+
+head(mat_df_io, 3)
+
+```
+
+We have thus created our second dataframe 'mat_df_io' as shown above, which has Imputed Outliers.
+
+## New Derived Features
+
+During data exploration, we noticed that 'SystolicBP' and 'DiastolicBP' were highly correlated. We will combine these two to derive a new feature called 'Mean Aterial Pressure (MAP)'. 'MAP' will give a single value that reflects overall arterial pressure over a cardiac cycle. It is given by the formula,
+
+$$
+\text{MAP} = \text{DBP} + \frac{1}{3} (\text{SBP} - \text{DBP})
+$$
+where,
+MAP = Mean Arterial Pressure
+SBP = Systolic Blood Pressure
+DBP = Diastolic Blood Pressure
+
+```{r derivingNewFeature, echo=FALSE}
+
+# Deriving new feature for 'mat_df_uniq' data frame
+
+  ## Creating derived vector 'MAP' (Mean Arterial Pressure)
+
+  MAP_uniq <- round(mat_df_uniq$DiastolicBP + 
+                      ((mat_df_uniq$SystolicBP - mat_df_uniq$DiastolicBP)/3),2)
+
+  ## Inserting new column at second position of data frame
+
+  mat_df_uniq <- cbind(mat_df_uniq[1:1],
+                       MAP = MAP_uniq, 
+                       mat_df_uniq[,2:ncol(mat_df_uniq)])
+  
+  ## Removing 'SystolicBP' and 'DiastolicBP'
+  
+  mat_df_uniq <- mat_df_uniq[,-c(3:4)]
+  
+  ## Inspecting new data frame 
+  
+  head(mat_df_uniq, 3)
+
+# Deriving new feature for 'mat_df_io' data frame
+
+  ## Creating derived vector 'MAP' (Mean Arterial Pressure)
+
+  MAP_io <- round(mat_df_io$DiastolicBP + 
+                      ((mat_df_io$SystolicBP - mat_df_io$DiastolicBP)/3),2)
+
+  ## Inserting new column at second position of data frame
+
+  mat_df_io <- cbind(mat_df_io[1:1],
+                       MAP = MAP_io, 
+                       mat_df_io[,2:ncol(mat_df_io)])
+  
+  ## Removing 'SystolicBP' and 'DiastolicBP'
+  
+  mat_df_io <- mat_df_io[,-c(3:4)]
+  
+  ## Inspecting new data frame
+  
+  head(mat_df_io, 3)
+
+```
+We can observe that 'SystolicBP' and 'DiastolicBP' (which were highly correlated) were combined to derive a new feature called 'MAP' (Mean Arterial Pressure) in both data sets ('mat_df_uniq' and 'mat_df_io').
+
+## Identification of Missing Values
+
+Next, we proceed to identify missing values. We create a our third data frame 'mat_df_im' from 'mat_df_uniq' and inspect for missing values :
+
+```{r identifyingMissingData (mat_df_im), echo=FALSE}
+
+# Creating a new data frame 'mat_df_im'
+
+mat_df_im <- mat_df_uniq
+
+# Identifying missing values
+
+for(i in 1:ncol(mat_df_im)){
+  a <- length(which(is.na(mat_df_im[,i])))
+  print(paste0("column ", i, " has ", a, " missing values"))
+}
+
+```
+We notice that there are no missing values in the data set. We will proceed to randomly introduce missing values, and later compare performance of the algorithms with imputed vs full data.
+
+## Data Imputation of Missing Data
+
+Randomly introducing missing values in predictor features of 'mat_df_im' data set.
+
+```{r introducingRandomData (mat_df_im), echo=FALSE}
+
+for(i in 1:ncol(mat_df_im[,-6])){
+  
+  # Setting seed for every iteration of the for loop
+  set.seed(i)
+  
+  # Creating an empty vector
+  new_vector <- c()
+    
+  # Creating 10 percent random indices
+  new_vector <- sample((1:nrow(mat_df_im)),floor(0.10*(nrow(mat_df_im))),replace=F)
+  
+  # Introducing NA values 
+  mat_df_im[new_vector,i] <- NA
+  
+}
+
+# Viewing first five rows of 'mat_df_im'
+
+head(mat_df_im, 3)
+
+```
+We notice that missing values have been introduced into the data set. We will identify number of missing values for confirmation.
+
+```{r identifyingMissingData2 (mat_df_im), echo=FALSE}
+
+# Identifying missing values
+
+for(i in 1:ncol(mat_df_im[,-6])){
+  a <- length(which(is.na(mat_df_im[,i])))
+  print(paste0("column ", i, " has ", a, " missing values"))
+}
+
+```
+We notice that each column has 45 missing values. Having 452 rows, this makes approximately 10 percent (45/452) of each column, which in turn makes 10 percent of the entire data set. We thus have a moderate percentage of data as missing in our data frame.
+
+Before imputing the missing data, we handle outliers of 'mat_df_im' by imputing it with median (since data is not normally distributed).
+
+```{r imputingOutliers (mat_df_im), echo=FALSE}
+
+# Obtaining column numbers for columns named 'BS' and 'BodyTemp'
+
+col_of_interest <- c("BS", "BodyTemp")
+column_numbers <- which(names(mat_df_im) %in% col_of_interest)
+
+# Imputing outliers of 'BS' (Blood Sugar) and 'BodyTemp' using z-score standardization
+
+for(i in column_numbers){
+  
+  z <- c(NA)
+  m <- mean(mat_df_im[,i], na.rm = TRUE)
+  sd <- sd(mat_df_im[,i], na.rm = TRUE)
+  med <- median(mat_df_im[,i], na.rm = TRUE)
+  
+  for(j in 1:nrow(mat_df_im)){
+    
+    z[j] <- abs((mat_df_im[j,i] - m))/sd
+    
+  }
+  
+  ## Imputing outliers (having z>3) with median
+  
+  mat_df_im[which(z>3),i] <- med
+}
+
+```
+
+Next, as all columns are continuous, and none of them are normally distributed, we will proceed with imputing the missing data with median of each column.
+
+```{r imputingMissingData (mat_df_im), echo=FALSE}
+
+# Imputing missing data with median
+
+for(i in 1:ncol(mat_df_im[,-6])){
+  a <- which(is.na(mat_df_im[,i]))
+  if(length(a) > 0){
+    mat_df_im[a,i] <- median(mat_df_im[,i], na.rm = TRUE)
+  }
+}
+
+# Viewing first 3 rows of 'mat_df_im'
+
+head(mat_df_im, 3)
+
+```
+We have successfully imputed the missing values with median for each column.
+
+We now have all three data frames as follows:
+1. 'mat_df_uniq' : Original data frame having no duplicates (outliers not imputed)
+2. 'mat_df_io' : Data frame having Imputed Outliers
+3. 'mat_df_im' : Data frame having Imputed Missing values
+
+We will apply next steps in data preparation (transformation, standardization, PCA, and deriving new features) to all three data sets.
+
+## Transformation of Features to Adjust Distribution
+
+We proceed to transform features and bring their distribution as close to a normal distribution as possible. We will first determine skewness using `skewness` function. We will adhere to the generally accepted range of skewness ie., if values are between -0.5 and 0.5 the distribution is considered a fairly symmetrical normal distribution.
+
+We will first determine and transform features of 'mat_df_uniq' (Original dataframe with no duplicates).
+
+```{r determingSkewness (mat_df_uniq)}
+
+# Determining skewness of 'mat_df_uniq'
+
+for(i in 1:ncol(mat_df_uniq[,-6])){
+  a <- skewness(mat_df_uniq[,i])
+  print(paste0(names(mat_df_uniq)[i], " has a skew of ", round(a,2)))
+}
+
+```
+We see that features 'Age', 'BS' (Blood Sugar), and 'BodyTemp' have values greater than 0.5, while others fall within the desired range. We will try transforming these features using log, sqrt, inverse, or box-cox transformations.
+
+```{r featureTransformation (mat_df_uniq)}
+
+# For 'Age' column
+
+  ## Displaying skewness of 'Age' before transformation
+
+  paste0("Skewness of Age before transformation is: ",
+         round(skewness(mat_df_uniq$Age),2))
+
+  ## Applying a log-transform on 'Age' column
+
+  mat_df_uniq$Age <- log(mat_df_uniq$Age)
+
+  ## Displaying skewness of 'Age' after transformation
+
+  paste0("New skewness value for Age after log transform is: ",
+         round(skewness(mat_df_uniq$Age),2))
+
+# For 'BS' (Blood Sugar) column
+  
+  ## Displaying skewness of 'BS' (Blood Sugar) before transformation
+
+  paste0("Skewness of BS before transformation is: ",
+         round(skewness(mat_df_uniq$BS),2))
+  
+  ## Fitting a linear model (for box-cox transformation)
+  
+  lm_bs_uniq <- lm(BS ~ 1, data = mat_df_uniq)
+
+  ## Plotting graph to check values of lambda
+  
+  bc_graph_uniq <- boxcox(lm_bs_uniq, seq(-3,3))
+
+  ## Extracting the best lambda
+  
+  lambda_uniq <- bc_graph_uniq$x[which.max(bc_graph_uniq$y)]
+  
+  ## Performing box-cox transformation using best lambda
+  
+  mat_df_uniq$BS <- (mat_df_uniq$BS^lambda_uniq - 1) / lambda_uniq
+  
+  ## Displaying skewness of 'BS' (Blood Sugar) after transformation
+  
+  paste0("New skewness value for BS after box-cox transform is: ",
+         round(skewness(mat_df_uniq$BS),2))
+
+```
+We successfully reduced skewness for 'Age' and 'BS' (Blood Sugar) to 0.2 and 0.44 respectively. For 'Age', we used a log-transform whereas for 'BS' (Blood Sugar), we used a box-cox transformation.
+
+Also shown is a graph, which was plotted using the `boxcox` function to determine the optimal lambda value. Using this we were able to transform the 'BS' (Blood Sugar) variable and bring it close to a normal distribution.
+
+Regarding 'BodyTemp', all transforms were applied and there was no significant reduction in skew. This is probably because most of the values occupy the minimum value of the column. This concern was also raised during Data Exploration.
+
+Next, we determine and transform features of 'mat_df_io' (having Imputed Outliers).
+
+```{r determingSkewness (mat_df_io)}
+
+# Determining skewness of 'mat_df_io'
+
+for(i in 1:ncol(mat_df_io[,-6])){
+  a <- skewness(mat_df_io[,i])
+  print(paste0(names(mat_df_io)[i], " has a skew of ", round(a,2)))
+}
+
+```
+
+We see that features 'Age', 'BS' (Blood Sugar), and 'BodyTemp' have values greater than 0.5, while others fall within the desired range. We will try transforming these features using log, sqrt, inverse, or box-cox transformations.
+
+```{r featureTransformation (mat_df_io)}
+
+# For 'Age' column
+
+  ## Displaying skewness of 'Age' before transformation
+
+  paste0("Skewness of Age is: ", round(skewness(mat_df_io$Age),2))
+
+  ## Applying a log-transform on 'Age' column
+
+  mat_df_io$Age <- log(mat_df_io$Age)
+
+  ## Displaying skewness of 'Age' after transformation
+
+  paste0("New skewness value for Age after log transform is: ", round(skewness(mat_df_io$Age),2))
+
+# For 'BS' (Blood Sugar) column
+  
+  ## Displaying skewness of BS (Blood Sugar) before transformation
+
+  paste0("Skewness of BS is: ", round(skewness(mat_df_io$BS),2))
+  
+  ## Fitting a linear model (for box-cox transformation)
+  
+  lm_bs_io <- lm(BS ~ 1, data = mat_df_io)
+
+  ## Plotting graph to check values of lambda
+  
+  bc_graph_io <- boxcox(lm_bs_io, seq(-3,3))
+
+  ## Extracting the best lambda
+  
+  lambda_io <- bc_graph_io$x[which.max(bc_graph_io$y)]
+  
+  ## Performing box-cox transformation using best lambda
+  
+  mat_df_io$BS <- (mat_df_io$BS^lambda_io - 1) / lambda_io
+  
+  ## Displaying skewness of 'BS' (Blood Sugar) after transformation
+  
+  paste0("New skewness value for BS after box-cox transform is: ", round(skewness(mat_df_io$BS),2))
+
+```
+We successfully reduced skewness for 'Age' and 'BS' (Blood Sugar) to 0.2 and 0.4 respectively. For 'Age,' we again used a log-transform whereas for 'BS' (Blood Sugar), we used a box-cox transformation.
+
+The graph shown was plotted using the `boxcox` function to determine the optimal lambda value. Using this we were able to transform the 'BS' (Blood Sugar) variable and bring it close to a normal distribution. 
+
+Regarding 'BodyTemp', similar to previous case, all transforms were applied and there was no significant reduction in skew. This is probably because most of the values occupy the minimum value of the column.
+
+Lastly, we determine skew and transform features of 'mat_df_im' (having Imputed Missing values).
+
+```{r determingSkewness (mat_df_im)}
+
+# Determining skewness of 'mat_df_im'
+
+for(i in 1:ncol(mat_df_im[,-6])){
+  a <- skewness(mat_df_im[,i])
+  print(paste0(names(mat_df_im)[i], " has a skew of ", round(a,2)))
+}
+
+```
+We see that features 'Age', 'BS' (Blood Sugar), and 'BodyTemp' have values greater than 0.5, while others fall within the desired range. We will try transforming these features using log, sqrt, inverse, or box-cox transformations.
+
+```{r featureTransformation (mat_df_im)}
+
+# For 'Age' column
+
+  ## Displaying skewness of 'Age' before transformation
+
+  paste0("Skewness of Age is: ", round(skewness(mat_df_im$Age),2))
+
+  ## Applying a log-transform on 'Age' column
+
+  mat_df_im$Age <- log(mat_df_im$Age)
+
+  ## Displaying skewness of 'Age' after transformation
+
+  paste0("New skewness value for Age after log transform is: ", round(skewness(mat_df_im$Age),2))
+
+# For 'BS' (Blood Sugar) column
+  
+  ## Displaying skewness of 'BS' (Blood Sugar) before transformation
+
+  paste0("Skewness of BS is: ", round(skewness(mat_df_im$BS),2))
+  
+  ## Fitting a linear model (for box-cox transformation)
+  
+  lm_bs_im <- lm(BS ~ 1, data = mat_df_im)
+
+  ## Plotting graph to check values of lambda
+  
+  bc_graph_im <- boxcox(lm_bs_im, seq(-3,3))
+
+  ## Extracting the best lambda
+  
+  lambda_im <- bc_graph_im$x[which.max(bc_graph_im$y)]
+  
+  ## Performing box-cox transformation using best lambda
+  
+  mat_df_im$BS <- (mat_df_im$BS^lambda_im - 1) / lambda_im
+  
+  ## Displaying skewness of 'BS' (Blood Sugar) after transformation
+  
+  paste0("New skewness value for BS after box-cox transform is: ", round(skewness(mat_df_im$BS),2))
+  
+```
+We successfully reduced skewness for 'Age' and 'BS' (Blood Sugar) to 0.23 and 0.5 respectively. For 'Age', we used a log-transform whereas for 'BS' (Blood Sugar), we used a box-cox transformation.
+
+The graph shown was plotted using the `boxcox` function to determine the optimal lambda value. Using this we were able to transform the 'BS' (Blood Sugar) variable and bring it close to a normal distribution.
+
+Regarding 'BodyTemp', similar to previous 2 cases, all transforms were applied and there was no significant reduction in skew. This is probably because most of the values occupy the minimum value of the column.
+
+## Standardization of Feature Values
+
+Next, we standardize data of all 3 data sets using z-score standardization to scale features on a common scale.
+
+```{r zScoreStandardization}
+
+# Creating a function to normalize values using z-score standardization
+
+Zscore_norm <- function(x){
+  return((x - mean(x))/(sd(x)))
+}
+
+# Extracting target variable columns from each data frame
+
+target_uniq <- mat_df_uniq[,6]
+target_io <- mat_df_io[,6]
+target_im <- mat_df_im[,6]
+
+# Standardizing data frames with normalized values using 'lapply'
+
+mat_df_uniq <- as.data.frame(lapply(mat_df_uniq[,-6], Zscore_norm))
+mat_df_io <- as.data.frame(lapply(mat_df_io[,-6], Zscore_norm))
+mat_df_im <- as.data.frame(lapply(mat_df_im[,-6], Zscore_norm))
+
+# Combining target variable columns to z-score standardized data frames
+
+mat_df_uniq <- cbind(mat_df_uniq, RiskLevel = target_uniq)
+mat_df_io <- cbind(mat_df_io, RiskLevel = target_io)
+mat_df_im <- cbind(mat_df_im, RiskLevel = target_im)
+
+# Inspecting data frame
+
+head(mat_df_uniq, 3)
+head(mat_df_io, 3)
+head(mat_df_im, 3)
+
+```
+
+We can observe that all values for the 3 data sets have been standardized.
+
+To normalize all values, we first created a 'Zscore_norm' function which returns the z-scores for a given vector. After this, we separated the target variable from each data frame. Then we standardized each of three data frames where we used `lapply()` to apply the function to all numeric columns. Lastly, we appended the target variable column to the z-score standardized data frames. Thus, the data frames now have all the z-score standardized values from the original data frame. 
+
+We normalize all values in the data set because ML algorithms like 'kNN' rely on the distances between data points to make predictions. Features having larger scales than others tend to overpower the others and decrease their relevancy. Hence, putting all features on a standardized scale ensures that all features contribute equally. 
+
+## Feature Encoding
+
+Since all features in the data set used are continuous, encoding the features by one-hot encoding or frequency encoding won't be required. If there had been a categorical feature, we would have to encode it to numerical values. For 'kNN' this is done to ensure distances can be calculated properly, while for 'logistic regression' this is done because it requires numeric data input for predictor features.
+
+## Identification of Principal Components (PCA)
+
+Next, we perform Principal Component Analysis to identify Principal Components and further use them for modeling. We will perform PCA for all three data sets (mat_df_uniq, mat_df_io, mat_df_im).
+
+First, we start with 'mat_df_uniq'.
+
+```{r performingPCA (mat_df_uniq)}
+
+# Performing Principal Component Analysis
+
+pca_uniq <- prcomp(mat_df_uniq[,-6], center = FALSE, scale. = FALSE)
+
+# Inspecting summary of PCA
+
+summary(pca_uniq)
+
+```
+From `summary` function, we observe that after performing PCA on 'mat_df_uniq' (original data frame), PC1 explains most variance (36%) out of all the components. Additionally, if we were to keep a threshold of 90%, we would consider the first four components as they explain 89% (~90%) of total variance. But wanting to retain data that explains at least 95% of variance, we will consider all five Principal Components in predicting the target variable.
+
+```{r screePlot (mat_df_uniq)}
+
+# Scree plot
+
+plot(pca_uniq, main = "Scree Plot")
+
+```
+
+The scree plot for PCA on 'mat_df_uniq' shows the variance of each principal component. We observe that highest variance is shown by PC1, after which the curve starts to slope downward. It appears to level off a little bit after the fourth Principal Component. This "elbow" point, beyond which principal components are usually dropped, can be a litle tough to point out for the Scree Plot shown.
+
+We proceed to extract the Principal Components into a data frame and append the target variable to it. This will then be used for model construction and evaluation.
+
+```{r extractingPC (mat_df_uniq), echo=FALSE}
+
+# Extracting Principal Components
+
+pca_values_uniq <- pca_uniq$x
+
+# Saving it into a data frame
+
+pca_df_uniq <- as.data.frame(pca_values_uniq)
+
+# Combining Principal Components with target variable
+
+final_uniq <- cbind(pca_df_uniq, RiskLevel = mat_df_uniq[,6])
+
+# Inspecting final prepared data set for 'mat_df_uniq'
+
+head(final_uniq, 3)
+
+```
+We observe the five Principal Components selected along with the target variable in the final prepared data set of 'mat_df_uniq' called 'final_uniq'. 
+
+We proceed to perform PCA for 'mat_df_io' (having Imputed Outliers).
+
+```{r performingPCA (mat_df_io)}
+
+# Performing Principal Component Analysis
+
+pca_io <- prcomp(mat_df_io[,-6], center = FALSE, scale. = FALSE)
+
+# Inspecting summary of PCA
+
+summary(pca_io)
+
+```
+From `summary` function, we observe that after performing PCA on 'mat_df_io' (having Imputed Outliers), PC1 explains most variance (34.5% in this case) out of all the components. It is lesser than previous case where PC1 explained 36% of variance probably because the extreme values that previously contributed to higher variance in 'mat_df_uniq' are no longer present (as 'mat_df_io' has outliers imputed with median). Additionally, if we were to keep a threshold of 90%, we would consider the first four components as they explain 88.9% (~90%) of total variance. But wanting to retain data that explains at least 95% of variance, we will consider all five Principal Components in predicting the target variable.
+
+```{r screePlot (mat_df_io)}
+
+# Scree plot
+
+plot(pca_io, main = "Scree Plot")
+
+```
+
+The scree plot for PCA on 'mat_df_io' shows that highest variance is shown by PC1, after which the curve starts to slope downward. It appears to level off a little bit after the fourth Principal Component. This "elbow" point can be a litle tough to point out for the Scree Plot shown.
+
+We proceed to extract the Principal Components into a data frame and append the target variable to it which will then be used for model construction and evaluation.
+
+```{r extractingPC (mat_df_io), echo=FALSE}
+
+# Extracting Principal Components
+
+pca_values_io <- pca_io$x
+
+# Saving it into a data frame
+
+pca_df_io <- as.data.frame(pca_values_io)
+
+# Combining Principal Components with target variable
+
+final_io <- cbind(pca_df_io, RiskLevel = mat_df_io[,6])
+
+# Inspecting final prepared data set for 'mat_df_io'
+
+head(final_io, 3)
+
+```
+We observe the five Principal Components selected along with the target variable in the final prepared data set of 'mat_df_io' called 'final_io'.
+
+Lastly, We proceed to perform PCA for 'mat_df_im' (having Imputed Missing values).
+
+```{r performingPCA (mat_df_im)}
+
+# Performing Principal Component Analysis
+
+pca_im <- prcomp(mat_df_im[,-6], center = FALSE, scale. = FALSE)
+
+# Inspecting summary of PCA
+
+summary(pca_im)
+
+```
+From `summary` function, we observe that after performing PCA on 'mat_df_im' (having Imputed Missing values), PC1 explains most variance (32.6% in this case) out of all the components. It is lesser than both previous cases probably because in 'mat_df_im' random values were replaced with NA and then were imputed with median. This could have led to values that previously contributed to higher variance to be no longer present. Wanting to retain data that explains at least 95% of variance, we will consider all five Principal Components in predicting the target variable.
+
+```{r screePlot (mat_df_im)}
+
+# Scree plot
+
+plot(pca_im, main = "Scree Plot")
+
+```
+
+The scree plot for PCA on 'mat_df_im' shows that highest variance is shown by PC1, after which the curve starts to slope downward. It appears to level off a little bit after the fourth Principal Component. This "elbow" point can be a litle tough to point out for the Scree Plot shown.
+
+We proceed to extract the Principal Components into a data frame and append the target variable to it which will then be used for model construction and evaluation.
+
+```{r extractingPC (mat_df_im), echo=FALSE}
+
+# Extracting Principal Components
+
+pca_values_im <- pca_im$x
+
+# Saving it into a data frame
+
+pca_df_im <- as.data.frame(pca_values_im)
+
+# Combining Principal Components with target variable
+
+final_im <- cbind(pca_df_im, RiskLevel = mat_df_im[,6])
+
+# Inspecting final prepared data set for 'mat_df_im'
+
+head(final_im, 3)
+
+```
+We observe the five Principal Components selected along with the target variable in the final prepared data set of 'mat_df_im' called 'final_im'.
+
+# Model Construction
+
+## Creation of Training and Validation Subsets
+
+We will split each of the three data frames, final_uniq, final_io and final_im into 75%/25% subsets, where 75% will be used for training the data and 25% will be used for validation. 
+
+Before splitting the data, within each of the three data frames, we will check proportions of classes of the target variable. We do this to check if any class is dominant over the others.
+
+```{r proportionTarget, echo=FALSE}
+
+# Proportion of target variable classes within 'final_uniq'
+
+cat("Proportion of target variable in final_uniq: \n")
+prop.table(table(final_uniq$RiskLevel))
+
+# Proportion of target variable classes within 'final_io'
+
+cat("Proportion of target variable in final_io:\n")
+prop.table(table(final_io$RiskLevel))
+
+# Proportion of target variable classes within 'final_im'
+
+cat("Proportion of target variable in final_im:\n")
+prop.table(table(final_im$RiskLevel))
+
+```
+We can see that low risk alone makes half the observations, while mid and high risk combined make the other half of the data set. To avoid any class imbalance in the training and validation data sets, we will use `createDataPartition` function from `caret` package to ensure stratified sampling.
+
+```{r splittingData, echo=FALSE}
+
+set.seed(1114)
+
+# Splitting data for 'final_uniq'
+
+  ## Creating indices for training set (stratified sampling)
+
+  uniq_sample <- createDataPartition(final_uniq$RiskLevel, p = .75, list = FALSE)
+
+  ## Subsetting the data frame
+
+  uniq_train <- final_uniq[uniq_sample, ]   # Training set
+  uniq_val <- final_uniq[-uniq_sample, ]   # Validation set
+  
+# Splitting data for 'final_io'
+
+  ## Creating indices for training set (stratified sampling)
+
+  io_sample <- createDataPartition(final_io$RiskLevel, p = .75, list = FALSE)
+
+  ## Subsetting the data frame
+
+  io_train <- final_io[io_sample, ]   # Training set
+  io_val <- final_io[-io_sample, ]   # Validation set
+
+# Splitting data for 'final_im'
+
+  ## Creating indices for training set (stratified sampling)
+
+  im_sample <- createDataPartition(final_im$RiskLevel, p = .75, list = FALSE)
+
+  ## Subsetting the data frame
+
+  im_train <- final_im[im_sample, ]   # Training set
+  im_val <- final_im[-im_sample, ]   # Validation set
+
+```
+Now that we have ensured similar proportions of classes in training and validation data sets, we proceed to build our classification models.
+
+## 1st Classification Model: k-Nearest Neighbours (kNN)
+
+We proceed with building our 1st classification model kNN. Generally, the starting value of k is assumed to be the square root of observations (21 in this case). Using the `caret` package, we will explicitly state value of k as 21.
+
+We will build kNN models for all three data sets (Original dataset, Imputed Outliers dataset, and Imputed Missing values data set).
+
+```{r creatingkNNModel}
+
+set.seed(555)
+
+# Building kNN model on data extracted from 'final_uniq' (Original dataset)
+
+tune_grid <- expand.grid(k = c(21))
+
+uniq_kNN_model <- train(RiskLevel ~ . ,
+                        data = uniq_train,
+                        method = "knn",
+                        tuneGrid = tune_grid)
+
+
+# Building kNN model on data extracted from 'final_io' (Imputed Outliers dataset)
+
+tune_grid <- expand.grid(k = c(21))
+
+io_kNN_model <- train(RiskLevel ~ . ,
+                      data = io_train,
+                      method = "knn",
+                      tuneGrid = tune_grid)
+
+# Building kNN model on data extracted from 'final_im' (Imputed Missing values dataset)
+
+tune_grid <- expand.grid(k = c(21))
+
+im_kNN_model <- train(RiskLevel ~ . ,
+                      data = im_train,
+                      method = "knn",
+                      tuneGrid = tune_grid)
+```
+
+We will later test different values of k to determine which value gives the best accuracy.
+
+## 2nd Classification Model: Logistic Regression
+
+Next, we will proceed with building Logistic regression models.
+
+```{r creatingLRModels, results='hide'}
+
+# Building logistic regression model of data from 'final_uniq'
+
+  uniq_LR_model <- multinom(RiskLevel ~ PC1 + PC2 + PC3 + PC4 + PC5, data = uniq_train)
+
+# Building logistic regression model of data from 'final_io'
+
+  io_LR_model <- multinom(RiskLevel ~ ., data = io_train)
+  
+# Building logistic regression model of data from 'final_im'
+
+  im_LR_model <- multinom(RiskLevel ~ PC1 + PC2 + PC3 + PC4 + PC5, data = im_train)
+
+```
+
+We used `nnet` package to train multi-nomial logistic regression models for the three data sets. 
+
+## 3rd Classification Model: Decision Tree
+
+Next, we proceed with building decision tree models for the three data sets.
+
+```{r creatingDTModels}
+
+# Building decision tree model of data from 'final_uniq'
+
+uniq_DT_model <- rpart(RiskLevel ~ ., data = uniq_train, method = "class")
+
+# Building decision tree model of data from 'final_io'
+
+io_DT_model <- rpart(RiskLevel ~ ., data = io_train, method = "class")
+
+# Building decision tree model of data from 'final_im'
+
+im_DT_model <- rpart(RiskLevel ~ ., data = im_train, method = "class")
+
+```
+
+We trained decision tree models using the `rpart` package. 
+
+## Appropriateness of Chosen Models For Given Data
+
+1. k-Nearest Neighbours: kNN is a non-parametric algorithm. It does not make any assumptions about the underlying data distribution or the relationship between the predictors and the target variable. This makes it well-suited for capturing complex, non-linear patterns in the data. During data exploration, we saw that the correlations between predictor features and target variable are in the range of -0.11 to -0.48. Since they are weak to moderate, kNN will perform well because it does not assume any specific form for the relationship between predictors and the target. Additionally, the data set had many duplicates and they had to be removed so we ended up with a smaller dataset which ultimately is for kNN as it is computationally expensive for larger datasets. 
+
+2. Logistic Regression: While Logistic Regression assumes a linear relationship between the predictors and the log-odds of the target, it can still perform reasonably well with moderate correlations. It further provides probabilistic outputs, which can be helpful for understanding the likelihood of different risk levels, even if the relationships between features and target are complex.
+
+3. Decision Trees: Decision Trees are particularly good at handling non-linear relationships because they split the data based on feature values in a hierarchical manner. This allows them to model complex interactions and non-linear patterns between features and the target.
+
+# Model Evaluation
+
+## Evaluation of Fit of Models with Holdout Method
+
+We proceed with model evaluation using Holdout method. 
+
+We will evaluate our models based on Accuracy, Recall (sensitivity) of high risk, and macro-averaged F1 score. It is important to determine Recall (sensitivity) for high risk cases because incorrectly identified high risk cases would have significant consequences. Regarding F1 score, we will calculate the macro-averaged F1-score which treats all classes equally and doesn't let the majority class (low risk in this case) dominate the performance metric.
+
+### Holdout Method for kNN
+
+First, we will start with evaluating kNN models built on the three data sets (Original, Imputed Outliers, and Imputed Missing values data set).
+
+```{r knnConMatrix1, echo=FALSE}
+
+# For validation data set extracted from 'final_uniq' (Original dataset)
+
+  ## Predicting target variable
+
+  uniq_kNN_pred <- predict(uniq_kNN_model, newdata = uniq_val[,-6])
+
+  ## Creating confusion Matrix
+
+  uniq_kNN_con <- table(Predicted = uniq_kNN_pred,
+                        Actual = uniq_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_uniq: \n")
+
+  print(uniq_kNN_con)
+  
+# For validation data set extracted from 'final_io' (Having Imputed Outliers)
+  
+  ## Predicting target variable
+
+  io_kNN_pred <- predict(io_kNN_model, newdata = io_val[,-6])
+
+  ## Creating confusion Matrix
+
+  io_kNN_con <- table(Predicted = io_kNN_pred,
+                        Actual = io_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_io: \n")
+  
+  print(io_kNN_con)
+  
+# For validation data set extracted from 'final_im' (Having Imputed Missing values)
+
+  ## Predicting target variable
+
+  im_kNN_pred <- predict(im_kNN_model, newdata = im_val[,-6])
+
+  ## Creating confusion Matrix
+
+  im_kNN_con <- table(Predicted = im_kNN_pred,
+                        Actual = im_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_im: \n")
+  
+  print(im_kNN_con)
+
+```
+Based on confusion matrices created, we notice that kNN correctly predicts low-risk values very well. However it does not predict mid-risk values as good. We will compare the models built by kNN on the three different data sets based on accuracy, recall (high risk), and macro-averaged F1 score:
+
+```{r comparingkNN1, echo=FALSE}
+
+# Calculating accuracy for each of the three data sets 
+
+Accuracy <-
+  c(paste(round((sum(diag(uniq_kNN_con))/sum(uniq_kNN_con))*100,2),"%"),
+    paste(round((sum(diag(io_kNN_con))/sum(io_kNN_con))*100,2),"%"),
+    paste(round((sum(diag(im_kNN_con))/sum(im_kNN_con))*100,2),"%"))
+
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_Risk <-
+  c(paste(round(uniq_kNN_con[3,3]/sum(uniq_kNN_con[,3])*100,2),"%"),
+    paste(round(io_kNN_con[3,3]/sum(io_kNN_con[,3])*100,2),"%"),
+    paste(round(im_kNN_con[3,3]/sum(im_kNN_con[,3])*100,2),"%"))  
+
+# Calculating macro-averaged F1 scores for each of the three data sets
+
+uniq_kNN_con2 <- confusionMatrix(uniq_kNN_pred, uniq_val$RiskLevel)
+uniq_kNN_con2F1 <- uniq_kNN_con2$byClass[, "F1"]
+uniq_kNN_macro_f1 <- mean(uniq_kNN_con2F1)
+
+io_kNN_con2 <- confusionMatrix(io_kNN_pred, io_val$RiskLevel)
+io_kNN_con2F1 <- io_kNN_con2$byClass[, "F1"]
+io_kNN_macro_f1 <- mean(io_kNN_con2F1)
+
+im_kNN_con2 <- confusionMatrix(im_kNN_pred, im_val$RiskLevel)
+im_kNN_con2F1 <- im_kNN_con2$byClass[, "F1"]
+im_kNN_macro_f1 <- mean(im_kNN_con2F1)
+
+Macro_averaged_F1 <- c(paste(round(uniq_kNN_macro_f1*100,2),"%"),
+                       paste(round(io_kNN_macro_f1*100,2),"%"),
+                       paste(round(im_kNN_macro_f1*100,2),"%"))
+
+# Creating a data frame that compares results of kNN on the three data sets
+
+knn_compare1 <- data.frame(
+  Accuracy = Accuracy,
+  Recall_High_Risk = Recall_High_Risk,
+  Macro_averaged_F1 = Macro_averaged_F1
+)
+
+# Setting row names
+
+rownames(knn_compare1) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+print(knn_compare1)
+
+```
+
+We notice that while Accuracy of Original data set kNN model and Imputed Outliers kNN model is the same, the macro-averaged F1 score of Imputed Outliers kNN model is only slightly higher than the Original model, indicating that when classes are given equal importance, overall performance of Imputed Outliers model is better.
+
+Regarding recall (sensitivity), we see that the original data set model performs the best out of the three in capturing true positive cases of high risk (out of true positive and false negatives). Further, the Imputed Missing values data set model performs the lowest in all three metrics, This could probably be because introducing random missing data and imputing it might have changed the original distribution of the data, which impacted the model's performance. The imputed values probably do not represent the true distribution well. 
+
+Thus, the kNN model performs best with the original dataset, where it correctly identifies high-risk cases effectively. Imputation strategies, especially for missing values, may have negatively impacted the model's performance.
+
+### Holdout Method: Logistic Regression
+
+Next, we will compare logistic regression models for holdout method and compare accuracy and precision metrics.
+
+```{r LRConMatrix1, echo=FALSE}
+
+# For validation data set extracted from 'final_uniq' (Original Data set)
+
+  ## Making predictions
+
+  uniq_LR_pred <- predict(uniq_LR_model, newdata = uniq_val[,-6], type = "class")
+
+  ## Creating confusion Matrix
+
+  uniq_LR_con <- table(Predicted = uniq_LR_pred, Actual = uniq_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_uniq: \n")
+
+  print(uniq_LR_con)
+
+# For validation data set extracted from 'final_io' (having Imputed Outliers)
+
+  ## Making predictions
+
+  io_LR_pred <- predict(io_LR_model, newdata = io_val[,-6], type = "class")
+
+  ## Creating confusion Matrix
+
+  io_LR_con <- table(Predicted = io_LR_pred, Actual = io_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_io: \n")
+
+  print(io_LR_con)
+  
+# For validation data set extracted from 'final_im' (having Imputed Missing values)
+
+  ## Making predictions
+
+  im_LR_pred <- predict(im_LR_model, newdata = im_val[,-6], type = "class")
+
+  ## Creating confusion Matrix
+
+  im_LR_con <- table(Predicted = im_LR_pred, Actual = im_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_im: \n")
+
+  print(im_LR_con)
+
+```
+We notice that similar to kNN, logistic regression models correctly predict low-risk very well. We see that Logistic Regression models fail to correctly predict mid risk values completely in the Original and Imputed Missing values data set. Thus, since calculating the macro-averaged F1 score won't make sense, we will only calculate Accuracy and Recall for high risk for the logistic regression models.
+
+We will now compare Accuracy and Recall for these three data sets: 
+
+```{r comparingLR1, echo=FALSE}
+
+# Calculating accuracy for each of the three data sets 
+
+AccuracyLR <-
+  c(paste(round((sum(diag(uniq_LR_con))/sum(uniq_LR_con))*100,2),"%"),
+    paste(round((sum(diag(io_LR_con))/sum(io_LR_con))*100,2),"%"),
+    paste(round((sum(diag(im_LR_con))/sum(im_LR_con))*100,2),"%"))
+
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_RiskLR <-
+  c(paste(round(uniq_LR_con[3,3]/sum(uniq_LR_con[,3])*100,2),"%"),
+    paste(round(io_LR_con[3,3]/sum(io_LR_con[,3])*100,2),"%"),
+    paste(round(im_LR_con[3,3]/sum(im_LR_con[,3])*100,2),"%"))
+
+# Creating a data frame that compares results of LR on the three data sets
+
+LR_compare1 <- data.frame(
+  Accuracy = AccuracyLR,
+  Recall_High_Risk = Recall_High_RiskLR
+)
+
+# Setting row names
+
+rownames(LR_compare1) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+print(LR_compare1)
+
+```
+
+We notice that the Imputed Outliers Logistic Regression model shows highest accuracy out of the three. But at the same time, the original data set model shows highest recall for high risk. The Imputed Missing values data set shows lowest performance in both metrics out of the three.
+
+According to me, the Original data set logistic regression model performs the best out of the three since its accuracy is only slightly less than Imputed outliers model, while its recall is highest. It seems imputation of outliers and missing values has negatively impacted the performance. 
+
+### Holdout Method: Decision Tree
+
+We proceed with applying holdout method for decision trees and comparing performance on the three data sets.
+
+```{r DTConMatrix1, echo=FALSE}
+
+# For validation data set extracted from 'final_uniq' (Original Data set)
+
+  ## Making predictions
+
+  uniq_DT_pred <- predict(uniq_DT_model, newdata = uniq_val[,-6], type = "class")
+
+  ## Creating confusion Matrix
+  
+  uniq_DT_con <- table(Predicted = uniq_DT_pred, Actual = uniq_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_uniq: \n")
+
+  print(uniq_DT_con)
+  
+# For validation data set extracted from 'final_io' (Having Imputed Outliers)
+
+  ## Making predictions
+
+  io_DT_pred <- predict(io_DT_model, newdata = io_val[,-6], type = "class")
+
+  ## Creating confusion Matrix
+  
+  io_DT_con <- table(Predicted = io_DT_pred, Actual = io_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_io: \n")
+
+  print(io_DT_con)
+
+# For validation data set extracted from 'final_im' (Having Imputed Missing values)
+
+  ## Making predictions
+
+  im_DT_pred <- predict(im_DT_model, newdata = im_val[,-6], type = "class")
+
+  ## Creating confusion Matrix
+  
+  im_DT_con <- table(Predicted = im_DT_pred, Actual = im_val$RiskLevel)
+  
+  cat("Confusion matrix based on data from final_im: \n")
+
+  print(im_DT_con)
+
+```
+We notice that Decision Tree models correctly predict low risk very well, but it doesn't predict mid-risk values well. We will compare Accuracy, Recall for high risk and macro-averaged F1 score using decision trees on all three data sets.
+
+```{r comparingDT1, echo=FALSE}
+
+# Calculating accuracy for each of the three data sets 
+
+AccuracyDT <-
+  c(paste(round((sum(diag(uniq_DT_con))/sum(uniq_DT_con))*100,2),"%"),
+    paste(round((sum(diag(io_DT_con))/sum(io_DT_con))*100,2),"%"),
+    paste(round((sum(diag(im_DT_con))/sum(im_DT_con))*100,2),"%"))
+
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_RiskDT <-
+  c(paste(round(uniq_DT_con[3,3]/sum(uniq_DT_con[,3])*100,2),"%"),
+    paste(round(io_DT_con[3,3]/sum(io_DT_con[,3])*100,2),"%"),
+    paste(round(im_DT_con[3,3]/sum(im_DT_con[,3])*100,2),"%"))
+
+# Calculating macro-averaged F1 scores for each of the three data sets
+
+uniq_DT_con2 <- confusionMatrix(uniq_DT_pred, uniq_val$RiskLevel)
+uniq_DT_con2F1 <- uniq_DT_con2$byClass[, "F1"]
+uniq_DT_macro_f1 <- mean(uniq_DT_con2F1)
+
+io_DT_con2 <- confusionMatrix(io_DT_pred, io_val$RiskLevel)
+io_DT_con2F1 <- io_DT_con2$byClass[, "F1"]
+io_DT_macro_f1 <- mean(io_DT_con2F1)
+
+im_DT_con2 <- confusionMatrix(im_DT_pred, im_val$RiskLevel)
+im_DT_con2F1 <- im_DT_con2$byClass[, "F1"]
+im_DT_macro_f1 <- mean(im_DT_con2F1)
+
+Macro_averaged_F1DT <- c(paste(round(uniq_DT_macro_f1*100,2),"%"),
+                       paste(round(io_DT_macro_f1*100,2),"%"),
+                      paste(round(im_DT_macro_f1*100,2),"%"))
+
+# Creating a data frame that compares results of DT on the three data sets
+
+DT_compare1 <- data.frame(
+  Accuracy = AccuracyDT,
+  Recall_High_Risk = Recall_High_RiskDT,
+  Macro_averaged_F1 = Macro_averaged_F1DT
+)
+
+# Setting row names
+
+rownames(DT_compare1) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+print(DT_compare1)
+
+```
+We see that for Decision Tree models, the Imputed Outliers model performs better than the other two in all performance metrics. This implies that Imputing Outliers was beneficial for decision tree models. The Imputed Missing values performs better than the Original data set model for Decision trees. 
+
+Thus, for Decision Tree models, the Imputed Outliers model would be the considered the best. Further, it seems that imputation strategies improved the performance of Decision tree models in all metrics.
+
+## Evaluation with k-fold Cross-validation & Hyperparameter Tuning
+
+We proceed with using k-fold cross validation and tuning hyperparameters. It will be helpful as the low number of observations in our data set won't be enough to train the models sufficiently. By testing the model on multiple subsets, and tuning hyperparameters where applicable (kNN and decision tree), the performance should likely improve.
+
+### kNN model (Hyperparameter tuning & Cross-validation)
+
+For kNN, we will first find optimal value of k by plotting a graph of different k values (1-30) vs Accuracy. After that we will apply cross validation with the optimal value of k to build the model. This will be done for all the three data sets (Original data set, Imputed Outliers data set, and Imputed Missing values data set).
+
+We start with the Original data set:
+
+```{r kPlot (final_uniq), echo=FALSE}
+
+## Initializing k-values for the chart as required
+
+k_values_uniq <- c(1:30)
+
+## Finding out accuracy of kNN model for each value of k
+## and saving it in a vector
+
+accuracy_k_uniq <- c(NA)
+
+j_uniq = 1
+
+for(i in k_values_uniq){
+  
+  tune_grid <- expand.grid(k = c(i))
+
+  uniq_kNN_model <- train(RiskLevel ~ . ,
+                        data = uniq_train,
+                        method = "knn",
+                        tuneGrid = tune_grid)
+  
+  uniq_kNN_pred <- predict(uniq_kNN_model, newdata = uniq_val[,-6])
+  
+  accuracy_k_uniq[j_uniq]<- (length(which(uniq_kNN_pred == uniq_val[,6]))) / nrow(uniq_val) * 100
+  
+  j_uniq = j_uniq + 1
+}
+
+## Plotting k values versus accuracy 
+
+plot(x = k_values_uniq,
+     y = accuracy_k_uniq,
+     type = "b", pch = 19, 
+     col = "red",
+     xlab = "k values",
+     ylab = "Accuracy")
+
+```
+
+We can observe that for k = 20, the model gives best accuracy. We will thus use k = 20 while building kNN model for the original data set.
+
+Next, we will find value of k for Imputed Outliers data set:
+```{r kPlot (final_io), echo=FALSE}
+
+## Initializing k-values for the chart as required
+
+k_values_io <- c(1:30)
+
+## Finding out accuracy of kNN model for each value of k
+## and saving it in a vector
+
+accuracy_k_io <- c(NA)
+
+j_io = 1
+
+for(i in k_values_io){
+  tune_grid <- expand.grid(k = c(i))
+
+  io_kNN_model <- train(RiskLevel ~ . ,
+                        data = io_train,
+                        method = "knn",
+                        tuneGrid = tune_grid)
+  
+  io_kNN_pred <- predict(io_kNN_model, newdata = io_val[,-6])
+  
+  accuracy_k_io[j_io]<- (length(which(io_kNN_pred == io_val[,6]))) / nrow(io_val) * 100
+  
+  j_io = j_io + 1
+}
+
+## Plotting k values versus accuracy 
+
+plot(x = k_values_io,
+     y = accuracy_k_io,
+     type = "b", pch = 19, 
+     col = "red",
+     xlab = "k values",
+     ylab = "Accuracy")
+
+```
+
+We can observe that for k = 10, the model gives best accuracy. We will thus use k = 10 while building kNN model for the Imputed Outliers data set.
+
+Next, we find optimal value of k for Imputed Missing values data set:
+
+```{r kPlot (final_im), echo=FALSE}
+
+## Initializing k-values for the chart as required
+
+k_values_im <- c(1:30)
+
+## Finding out accuracy of kNN model for each value of k
+## and saving it in a vector
+
+accuracy_k_im <- c(NA)
+
+j_im = 1
+
+for(i in k_values_im){
+ tune_grid <- expand.grid(k = c(i))
+
+  im_kNN_model <- train(RiskLevel ~ . ,
+                        data = im_train,
+                        method = "knn",
+                        tuneGrid = tune_grid)
+  
+  im_kNN_pred <- predict(im_kNN_model, newdata = im_val[,-6])
+  
+  accuracy_k_im[j_im]<- (length(which(im_kNN_pred == im_val[,6]))) / nrow(im_val) * 100
+  
+  j_im = j_im + 1
+}
+
+## Plotting k values versus accuracy 
+
+plot(x = k_values_im,
+     y = accuracy_k_im,
+     type = "b", pch = 19, 
+     col = "red",
+     xlab = "k values",
+     ylab = "Accuracy")
+
+```
+
+We can observe that for k = 9, the model gives best accuracy. We will thus use k = 9 while building kNN model for the Imputed Missing values data set.
+
+We proceed with using cross validation (using 10 folds) for all three data sets based on the k values found in above graphs.  Further, we will calculate Accuracy, Recall for high risk and macro-averaged F1 score metrics for the three kNN models.
+```{r kNNCrossVal, echo=FALSE}
+
+# Setting number of folds to 10
+
+train_control <- trainControl(method = "cv", number = 10)
+
+# Applying cross validation on data extracted from 'final_uniq' (Original data set)
+
+  tune_grid_uniq_cv <- expand.grid(k = c(20))
+
+  uniq_kNN_cv <- train(RiskLevel ~ .,
+                       data = uniq_train,
+                       method = "knn", 
+                       trControl = train_control,
+                       tuneGrid = tune_grid_uniq_cv)
+
+  ## Making predictions
+  
+  uniq_kNN_cvpred <- predict(uniq_kNN_cv, newdata = uniq_val[,-6])
+
+  ## Creating confusion Matrix
+  
+  uniq_kNN_cvcon <- table(Predicted = uniq_kNN_cvpred,
+                        Actual = uniq_val$RiskLevel)
+  
+# Applying cross validation on data extracted from 'final_io' (having Imputed Outliers)
+  
+  tune_grid_io_cv <- expand.grid(k = c(10))
+
+  io_kNN_cv <- train(RiskLevel ~ .,
+                     data = io_train,
+                     method = "knn", 
+                     trControl = train_control,
+                     tuneGrid = tune_grid_io_cv)
+
+  ## Making predictions
+  
+  io_kNN_cvpred <- predict(io_kNN_cv, newdata = io_val[,-6])
+
+  ## Creating confusion Matrix
+  
+  io_kNN_cvcon <- table(Predicted = io_kNN_cvpred,
+                        Actual = io_val$RiskLevel)
+  
+# Applying cross validation on data extracted from 'final_im' (having Imputed Missing values)
+  
+  tune_grid_im_cv <- expand.grid(k = c(9))
+
+  im_kNN_cv <- train(RiskLevel ~ .,
+                     data = im_train,
+                     method = "knn", 
+                     trControl = train_control,
+                     tuneGrid = tune_grid_im_cv)
+
+  ## Making predictions
+  
+  im_kNN_cvpred <- predict(im_kNN_cv, newdata = im_val[,-6])
+
+  ## Creating confusion Matrix
+  
+  im_kNN_cvcon <- table(Predicted = im_kNN_cvpred,
+                        Actual = im_val$RiskLevel)
+  
+# Calculating accuracy for each of the three data sets 
+  
+Accuracycv <-
+  c(paste(round((sum(diag(uniq_kNN_cvcon))/sum(uniq_kNN_cvcon))*100,2),"%"),
+    paste(round((sum(diag(io_kNN_cvcon))/sum(io_kNN_cvcon))*100,2),"%"),
+    paste(round((sum(diag(im_kNN_cvcon))/sum(im_kNN_cvcon))*100,2),"%"))
+  
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_Riskcv <-
+  c(paste(round(uniq_kNN_cvcon[3,3]/sum(uniq_kNN_cvcon[,3])*100,2),"%"),
+    paste(round(io_kNN_cvcon[3,3]/sum(io_kNN_cvcon[,3])*100,2),"%"),
+    paste(round(im_kNN_cvcon[3,3]/sum(im_kNN_cvcon[,3])*100,2),"%"))  
+
+# Calculating macro-averaged F1 scores for each of the three data sets
+
+uniq_kNN_cvcon2 <- confusionMatrix(uniq_kNN_cvpred, uniq_val$RiskLevel)
+uniq_kNN_cvcon2F1 <- uniq_kNN_cvcon2$byClass[, "F1"]
+uniq_kNN_cvmacro_f1 <- mean(uniq_kNN_cvcon2F1)
+
+io_kNN_cvcon2 <- confusionMatrix(io_kNN_cvpred, io_val$RiskLevel)
+io_kNN_cvcon2F1 <- io_kNN_cvcon2$byClass[, "F1"]
+io_kNN_cvmacro_f1 <- mean(io_kNN_cvcon2F1)
+
+im_kNN_cvcon2 <- confusionMatrix(im_kNN_cvpred, im_val$RiskLevel)
+im_kNN_cvcon2F1 <- im_kNN_cvcon2$byClass[, "F1"]
+im_kNN_cvmacro_f1 <- mean(im_kNN_cvcon2F1)
+
+Macro_averaged_cvF1 <- c(paste(round(uniq_kNN_cvmacro_f1*100,2),"%"),
+                       paste(round(io_kNN_cvmacro_f1*100,2),"%"),
+                       paste(round(im_kNN_cvmacro_f1*100,2),"%"))
+
+# Creating a data frame that compares results of kNN on the three data sets
+
+knn_compare2 <- data.frame(
+  Accuracy = Accuracycv,
+  Recall_High_Risk = Recall_High_Riskcv,
+  Macro_averaged_F1 = Macro_averaged_cvF1
+)
+
+# Setting row names
+
+rownames(knn_compare2) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+cat("Performance metrics before cross validation & hyperparameter tuning:")
+
+print(knn_compare1)
+
+cat("Performance metrics after cross validation & hyperparameter tuning:")
+
+print(knn_compare2)
+
+```
+
+We observe that for Imputed Outliers data set, the accuracy improved after cross validation and using optimal k-value. 
+
+For the Original data set that had outliers, the accuracy decreased. This can be because outliers affect the performance of k-Nearest Neighbors (kNN). And after tuning and cross validation, this was magnified and ultimately affected its performance. Cross-validation exposed issues that were masked in the holdout method. On the other hand, the recall for Original model reamins the highest.
+
+For Imputed Missing values data set we can see an improvement in overall accuracy, with precision of most classes increasing as well.
+
+We an thus say that for kNN, tuning hyperparameters and using k-fold cross validation was beneficial for Imputed Outliers and Imputed Missing values data set. But still I consider the Original kNN model to be the best even after cross validation, owing to the fact that it has hgiest recall, and only slightly lesser accuracy and F1 score than others.
+
+### Logistic Regression model (Cross-validation)
+
+We will proceed with applying cross-validation to the logistic regression models. We will only be comparing Accuracy and Recall for high risk for the three models. 
+
+```{r LRCrossVal, echo = F, results='hide'}
+
+# Setting number of folds to 10
+
+train_controlLR <- trainControl(method = "cv", number = 10)
+
+# Applying cross validation on data extracted from 'final_uniq' (Original data)
+
+  uniq_LR_cv <- train(RiskLevel ~ .,
+                     data = uniq_train,
+                     method = "nnet",
+                     trControl = train_controlLR)
+
+  ## Making predictions
+
+  uniq_LR_cvpred <- predict(uniq_LR_cv, newdata = uniq_val[,-6])
+
+  ## Creating confusion Matrix
+
+  uniq_LR_cvcon <- table(Predicted = uniq_LR_cvpred, Actual = uniq_val$RiskLevel)
+
+# Applying cross validation on data extracted from 'final_io' (having Imputed Outliers)
+
+  io_LR_cv <- train(RiskLevel ~ .,
+                     data = io_train,
+                     method = "nnet",
+                     trControl = train_controlLR)
+
+  ## Making predictions
+
+  io_LR_cvpred <- predict(io_LR_cv, newdata = io_val[,-6])
+
+  ## Creating confusion Matrix
+
+  io_LR_cvcon <- table(Predicted = io_LR_cvpred, Actual = io_val$RiskLevel)
+
+# Applying cross validation on data extracted from 'final_im' (having Imputed Missing values)
+
+  im_LR_cv <- train(RiskLevel ~ .,
+                     data = im_train,
+                     method = "nnet",
+                     trControl = train_controlLR)
+
+  ## Making predictions
+
+  im_LR_cvpred <- predict(im_LR_cv, newdata = im_val[,-6])
+
+  ## Creating confusion Matrix
+
+  im_LR_cvcon <- table(Predicted = im_LR_cvpred, Actual = im_val$RiskLevel)
+  
+```
+
+```{r LRCrossVal2, echo=FALSE}
+
+# Calculating accuracy for each of the three data sets 
+  
+AccuracyLRcv <-
+  c(paste(round((sum(diag(uniq_LR_cvcon))/sum(uniq_LR_cvcon))*100,2),"%"),
+    paste(round((sum(diag(io_LR_cvcon))/sum(io_LR_cvcon))*100,2),"%"),
+    paste(round((sum(diag(im_LR_cvcon))/sum(im_LR_cvcon))*100,2),"%"))
+  
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_RiskLRcv <-
+  c(paste(round(uniq_LR_cvcon[3,3]/sum(uniq_LR_cvcon[,3])*100,2),"%"),
+    paste(round(io_LR_cvcon[3,3]/sum(io_LR_cvcon[,3])*100,2),"%"),
+    paste(round(im_LR_cvcon[3,3]/sum(im_LR_cvcon[,3])*100,2),"%"))  
+
+# Creating a data frame that compares results of kNN on the three data sets
+
+LR_compare2 <- data.frame(
+  Accuracy = AccuracyLRcv,
+  Recall_High_Risk = Recall_High_RiskLRcv
+)
+
+# Setting row names
+
+rownames(LR_compare2) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+cat("Accuracy and Recall (for high risk) before cross validation & hyperparameter tuning:")
+
+print(LR_compare1)
+
+cat("Accuracy and Recall (for high risk) after cross validation & hyperparameter tuning:")
+
+print(LR_compare2)
+
+
+```
+
+We observe that after cross validation of Logistic Regression models, the Performance metrics of both Original model and Imputed Missing values model increases, while that of Imputed Outliers decreases.
+
+We can thus see that before and after cross validation, the Original data set logistic regression model perfroms the best out of the three models.
+
+### Decision Tree model (Hyperparameter tuning & Cross-validation)
+
+Next, we proceed with applying cross-validation to decision tree models and tune its hyperparameters. We will optimize the model by finding and using optimal values for number of levels in the tree, and using 10 fold cross validation on all three models.
+
+```{r DTCrossVal, echo=FALSE}
+
+# Tuning hyperparameters
+
+tune_gridDT <- expand.grid(cp = c(0.01, 0.05, 0.1, 0.2))     # number of levels in the tree
+
+# Setting number of folds to 10
+
+train_controlDT <- trainControl(method = "cv", number = 10) 
+
+# Applying cross validation and tuning DT model built on 'final_uniq' (Original data set)
+
+  uniq_DT_cv <- train(RiskLevel ~ ., 
+                     data = uniq_train, 
+                     method = "rpart", 
+                     trControl = train_controlDT,
+                     tuneGrid = tune_gridDT)
+  
+    ## Making predictions
+  
+  uniq_DT_cvpred <- predict(uniq_DT_cv, newdata = uniq_val[,-6], type = "raw")
+
+  ## Creating confusion Matrix
+  
+  uniq_DT_cvcon <- table(Predicted = uniq_DT_cvpred, Actual = uniq_val$RiskLevel)
+  
+# Applying cross validation and tuning DT model built on 'final_io' (having Imputed Outliers)
+
+  io_DT_cv <- train(RiskLevel ~ ., 
+                     data = io_train, 
+                     method = "rpart", 
+                     trControl = train_controlDT, 
+                     tuneGrid = tune_gridDT)
+  
+  ## Making predictions
+  
+  io_DT_cvpred <- predict(io_DT_cv, newdata = io_val[,-6], type = "raw")
+
+  ## Creating confusion Matrix
+  
+  io_DT_cvcon <- table(Predicted = io_DT_cvpred, Actual = io_val$RiskLevel)
+  
+# Applying cross validation and tuning DT model built on 'final_im' (having Imputed Missing values)
+
+  im_DT_cv <- train(RiskLevel ~ ., 
+                     data = im_train, 
+                     method = "rpart", 
+                     trControl = train_controlDT, 
+                     tuneGrid = tune_gridDT)
+  
+  ## Making predictions
+  
+  im_DT_cvpred <- predict(im_DT_cv, newdata = im_val[,-6], type = "raw")
+
+  ## Creating confusion Matrix
+  
+  im_DT_cvcon <- table(Predicted = im_DT_cvpred, Actual = im_val$RiskLevel)
+
+# Calculating accuracy for each of the three data sets 
+
+AccuracyDTcv <-
+  c(paste(round((sum(diag(uniq_DT_cvcon))/sum(uniq_DT_cvcon))*100,2),"%"),
+    paste(round((sum(diag(io_DT_cvcon))/sum(io_DT_cvcon))*100,2),"%"),
+    paste(round((sum(diag(im_DT_cvcon))/sum(im_DT_cvcon))*100,2),"%"))
+
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_RiskDTcv <-
+  c(paste(round(uniq_DT_cvcon[3,3]/sum(uniq_DT_cvcon[,3])*100,2),"%"),
+    paste(round(io_DT_cvcon[3,3]/sum(io_DT_cvcon[,3])*100,2),"%"),
+    paste(round(im_DT_cvcon[3,3]/sum(im_DT_cvcon[,3])*100,2),"%"))
+
+# Calculating macro-averaged F1 scores for each of the three data sets
+
+uniq_DT_cvcon2 <- confusionMatrix(uniq_DT_cvpred, uniq_val$RiskLevel)
+uniq_DT_cvcon2F1 <- uniq_DT_cvcon2$byClass[, "F1"]
+uniq_DT_cvmacro_f1 <- mean(uniq_DT_cvcon2F1)
+
+io_DT_cvcon2 <- confusionMatrix(io_DT_cvpred, io_val$RiskLevel)
+io_DT_cvcon2F1 <- io_DT_cvcon2$byClass[, "F1"]
+io_DT_cvmacro_f1 <- mean(io_DT_cvcon2F1)
+
+im_DT_cvcon2 <- confusionMatrix(im_DT_cvpred, im_val$RiskLevel)
+im_DT_cvcon2F1 <- im_DT_cvcon2$byClass[, "F1"]
+im_DT_cvmacro_f1 <- mean(im_DT_cvcon2F1)
+
+Macro_averaged_DTcvF1 <- c(paste(round(uniq_DT_cvmacro_f1*100,2),"%"),
+                       paste(round(io_DT_cvmacro_f1*100,2),"%"),
+                      paste(round(im_DT_cvmacro_f1*100,2),"%"))
+
+# Creating a data frame that compares results of DT on the three data sets
+
+DT_compare2 <- data.frame(
+  Accuracy = AccuracyDTcv,
+  Recall_High_Risk = Recall_High_RiskDTcv,
+  Macro_averaged_F1 = Macro_averaged_DTcvF1
+)
+
+# Setting row names
+
+rownames(DT_compare2) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+cat("Accuracy and Recall (for high risk) before cross validation & hyperparameter tuning:")
+
+print(DT_compare1[,c(1,2)])
+
+cat("Accuracy and Recall (for high risk) after cross validation & hyperparameter tuning:")
+
+print(DT_compare2[,c(1,2)])
+
+```
+
+We observe that tuning limited hyperparameters and applying 10 fold cross validation on the Decision Tree models doesn't improve the performance to a great extent. In fact, it only slightly increases the Accuracy for the Imputed Outliers data set. 
+
+We can thus say that after before and after cross validation, the Imputed Outliers Decision Tree model performs best out of the others.
+
+## Comparison of Models and Interpretation
+
+We will compare Accuracy and Recall of high risk of all three chosen ML models for the three data sets (after k fold cross validation was done).
+
+```{r comparisonOfModels, echo = FALSE}
+
+# Creating data frame comparing accuracy of all three data sets using all three models 
+# (after cross validation)
+
+all_compare_accuracy <- data.frame(
+  AccuracykNN = Accuracycv,
+  AccuracyLR = AccuracyLRcv,
+  AccuracyDT = AccuracyDTcv
+)
+
+rownames(all_compare_accuracy) <- c("Original dataset (no imputations)",
+                                    "Imputed Outliers dataset",
+                                    "Imputed Missing values dataset")
+
+
+print(all_compare_accuracy)
+
+# Creating data frame comparing accuracy of all three data sets using all three models 
+# (after cross validation)
+
+all_compare_recall <- data.frame(
+  Recall_High_Risk_kNN = Recall_High_Riskcv,
+  Recall_High_Risk_LR = Recall_High_RiskLRcv,
+  Recall_High_Risk_DT = Recall_High_RiskDTcv
+)
+
+rownames(all_compare_recall) <- c("Original dataset (no imputations)",
+                                    "Imputed Outliers dataset",
+                                    "Imputed Missing values dataset")
+
+print(all_compare_recall)
+  
+
+```
+
+Comparing Accuracy, we can see that the Imputed Outliers kNN data set model performs the best out of all the models. The accuracy was increased after k fold cross validation, which was important owing to the limited number of observations. We also notice that the Decision Tree model performs lowest in terms of Accuracy out of three models. The Decision tree models could probably benefit from further tuning of its hyperparameters.
+
+Comparing Recall (sensitivity), we can say that the Original data set logistic regression model performed the best out of all other models. The Original kNN model showed high recall for high risk cases as well. Recall being an important performance metric in our case, I would consider the Original logistic regression model to be the best overall, because even though it has slightly lower accuracy, accuracy doesn't take into account weights of each class and for our data sets low risk cases dominated in the training and validation data sets, which might influence or mask performnace of other classes. 
+
+This implies that in a practical scenario, models built on the original data set for maternal health risks perform better, and that imputation strategies ultimately decrease the model's performance. 
+
+# Model Tuning & Performance Improvement
+
+## Use of Bagging with Homogeneous Learners
+
+Owing to the low performance of Decision Tree models seen when comparing different models, we will see if using bagging with Decision Tree models improves it's performance.
+
+We won't use bagging with kNN because bagging aims to improve model performance by averaging predictions from multiple models trained on different subsets of the data. As kNN is inherently an instance-based learner and does not produce a model in the conventional sense, bagging does not offer significant benefits. 
+
+Regarding Logistic regression, it handles variance well by itself. As bagging helps with models that have high variance the benefits of bagging would be very limited with logistic regression.
+
+Since Decision Trees are high variance models, bagging can reduce overfitting and improve stability and performance of Decision Trees.
+
+```{r baggingDT, echo=FALSE}
+
+# Tuning hyperparameters
+
+tune_gridDT <- expand.grid(nbagg = c(25, 50, 100))     # number of levels in the tree
+
+# Setting number of folds to 10
+
+train_controlDTbag <- trainControl(method = "cv", number = 10) 
+
+# Applying cross validation and tuning DT model built on 'final_uniq' (Original data set)
+
+  uniq_DT_bag <- train(RiskLevel ~ ., 
+                     data = uniq_train, 
+                     method = "treebag", 
+                     trControl = train_controlDTbag)
+  
+    ## Making predictions
+  
+  uniq_DT_bagpred <- predict(uniq_DT_bag, newdata = uniq_val[,-6], type = "raw")
+
+  ## Creating confusion Matrix
+  
+  uniq_DT_bagcon <- table(Predicted = uniq_DT_bagpred, Actual = uniq_val$RiskLevel)
+  
+# Applying cross validation and tuning DT model built on 'final_io' (having Imputed Outliers)
+
+  io_DT_bag <- train(RiskLevel ~ ., 
+                     data = io_train, 
+                     method = "treebag", 
+                     trControl = train_controlDTbag)
+  
+  ## Making predictions
+  
+  io_DT_bagpred <- predict(io_DT_bag, newdata = io_val[,-6], type = "raw")
+
+  ## Creating confusion Matrix
+  
+  io_DT_bagcon <- table(Predicted = io_DT_bagpred, Actual = io_val$RiskLevel)
+  
+# Applying cross validation and tuning DT model built on 'final_im' (having Imputed Missing values)
+
+  im_DT_bag <- train(RiskLevel ~ ., 
+                     data = im_train, 
+                     method = "treebag", 
+                     trControl = train_controlDTbag)
+  
+  ## Making predictions
+  
+  im_DT_bagpred <- predict(im_DT_bag, newdata = im_val[,-6], type = "raw")
+
+  ## Creating confusion Matrix
+  
+  im_DT_bagcon <- table(Predicted = im_DT_bagpred, Actual = im_val$RiskLevel)
+
+# Calculating accuracy for each of the three data sets 
+
+AccuracyDTbag <-
+  c(paste(round((sum(diag(uniq_DT_bagcon))/sum(uniq_DT_bagcon))*100,2),"%"),
+    paste(round((sum(diag(io_DT_bagcon))/sum(io_DT_bagcon))*100,2),"%"),
+    paste(round((sum(diag(im_DT_bagcon))/sum(im_DT_bagcon))*100,2),"%"))
+
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_RiskDTbag <-
+  c(paste(round(uniq_DT_bagcon[3,3]/sum(uniq_DT_bagcon[,3])*100,2),"%"),
+    paste(round(io_DT_bagcon[3,3]/sum(io_DT_bagcon[,3])*100,2),"%"),
+    paste(round(im_DT_bagcon[3,3]/sum(im_DT_bagcon[,3])*100,2),"%"))
+
+# Calculating macro-averaged F1 scores for each of the three data sets
+
+uniq_DT_bagcon2 <- confusionMatrix(uniq_DT_bagpred, uniq_val$RiskLevel)
+uniq_DT_bagcon2F1 <- uniq_DT_bagcon2$byClass[, "F1"]
+uniq_DT_bagmacro_f1 <- mean(uniq_DT_bagcon2F1)
+
+io_DT_bagcon2 <- confusionMatrix(io_DT_bagpred, io_val$RiskLevel)
+io_DT_bagcon2F1 <- io_DT_bagcon2$byClass[, "F1"]
+io_DT_bagmacro_f1 <- mean(io_DT_bagcon2F1)
+
+im_DT_bagcon2 <- confusionMatrix(im_DT_bagpred, im_val$RiskLevel)
+im_DT_bagcon2F1 <- im_DT_bagcon2$byClass[, "F1"]
+im_DT_bagmacro_f1 <- mean(im_DT_bagcon2F1)
+
+Macro_averaged_DTbagF1 <- c(paste(round(uniq_DT_bagmacro_f1*100,2),"%"),
+                       paste(round(io_DT_bagmacro_f1*100,2),"%"),
+                      paste(round(im_DT_bagmacro_f1*100,2),"%"))
+
+# Creating a data frame that compares results of DT on the three data sets
+
+DT_compare3 <- data.frame(
+  Accuracy = AccuracyDTbag,
+  Recall_High_Risk = Recall_High_RiskDTbag,
+  Macro_averaged_F1 = Macro_averaged_DTbagF1
+)
+
+# Setting row names
+rownames(DT_compare3) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+cat("Accuracy and Recall (for high risk) after cross validation & hyperparameter tuning:")
+
+print(DT_compare2[,c(1,2)])
+
+cat("Accuracy and Recall (for high risk) after bagging:")
+
+print(DT_compare3[,c(1,2)])
+
+```
+
+We see that bagging with Decision Tree models improved the performance metrics. A significant improvement is seen with recall (high risk) in the Original Decision tree model and Imputed Outlier Decision tree model. Bagging has thus improved model performance and generalization as expected.
+
+## Construction of Ensemble Model as a Function
+
+Next, we proceed with constructing an ensemble model as a function. This ensemble function will be able to predict RiskLevels by considering the mode of predicted classes by the three models for each new instance.
+
+```{r ensembleFunction}
+
+# Creating functions to calculate mode
+
+  get_mode <- function(x) {
+  uniq_x <- unique(x)
+  uniq_x[which.max(tabulate(match(x, uniq_x)))]
+  }
+
+# Creating ensemble function
+
+hetero_ensemble <- function(newdata, model1, model2, model3){
+  
+  predicted_labels <- c()
+  
+  for(i in 1:nrow(newdata)){
+    newdata <- newdata[,-6]
+    kNN_pred <- predict(model1, newdata = newdata[i,]) 
+    LR_pred <- predict(model2, newdata = newdata[i,])
+    DT_pred <- predict(model3, newdata = newdata[i,])
+  
+    predictions <- c(as.character(kNN_pred), as.character(LR_pred), as.character(DT_pred))
+    
+    mode_pred <- get_mode(predictions)
+    
+    predicted_labels <- c(predicted_labels, mode_pred)
+    
+    }
+  
+  ## returning majority vote to determine the final prediction from the individual
+  ## predictions
+  
+  predicted_labels <- factor(predicted_labels, levels = c("low risk", "mid risk", "high risk"))
+  
+  return((predicted_labels))
+  
+}
+
+```
+
+We created an ensemble function that takes 4 parameters - new data, the kNN model, logistic regression model, and decision tree model. Using these, it predicts the target variable.
+
+## Application of Ensemble to make a Prediction
+
+Next, we proceed with predicting target variables for the three validation data sets (Original Imputed Outliers, and Imputed Missing values) using the ensemble function. For the predictions, we will input models of kNN and logistic regression which were tuned and cross validated. For decision tree we will input the bagged model since it performed the best out of all decision tree models. 
+
+```{r ensemblePrediction}
+
+# Predicting target variable for using ensemble data extracted from Original data set
+
+uniq_ensemble_pred <- hetero_ensemble(uniq_val, uniq_kNN_cv, uniq_LR_cv, uniq_DT_bag)
+
+# Predicting target variable for using ensemble data extracted from Imputed Outliers data set
+
+io_ensemble_pred <- hetero_ensemble(io_val, io_kNN_cv, io_LR_cv, io_DT_bag)
+
+# Predicting target variable for using ensemble data extracted from Imputed Missing values data set
+
+im_ensemble_pred <- hetero_ensemble(im_val, im_kNN_cv, im_LR_cv, im_DT_bag)
+
+```
+
+## Comparison of Ensemble to Individual Models
+
+We proceed to compare ensemble to individual models:
+
+```{r ensembleCompare, echo = FALSE}
+
+# Creating confusion matrices
+
+uniq_en_con <- table(Predicted = uniq_ensemble_pred, Actual = uniq_val$RiskLevel)
+io_en_con <- table(Predicted = io_ensemble_pred, Actual = io_val$RiskLevel)
+im_en_con <- table(Predicted = im_ensemble_pred, Actual = im_val$RiskLevel)
+
+# Calculating accuracy for each of the three data sets
+
+Accuracy_en <-
+  c(paste(round((sum(diag(uniq_en_con))/sum(uniq_en_con))*100,2),"%"),
+    paste(round((sum(diag(io_en_con))/sum(io_en_con))*100,2),"%"),
+    paste(round((sum(diag(im_en_con))/sum(im_en_con))*100,2),"%"))
+
+# Calculating recall (high risk) for each of the three data sets
+
+Recall_High_Risk_en <-
+  c(paste(round(uniq_en_con[3,3]/sum(uniq_en_con[,3])*100,2),"%"),
+    paste(round(io_en_con[3,3]/sum(io_en_con[,3])*100,2),"%"),
+    paste(round(im_en_con[3,3]/sum(im_en_con[,3])*100,2),"%"))
+
+# Calculating macro-averaged F1 scores for each of the three data sets
+
+uniq_en_con2 <- confusionMatrix(uniq_ensemble_pred, uniq_val$RiskLevel)
+uniq_en_con2F1 <- uniq_en_con2$byClass[, "F1"]
+uniq_en_con2_macroF1 <- mean(uniq_en_con2F1)
+
+io_en_con2 <- confusionMatrix(io_ensemble_pred, io_val$RiskLevel)
+io_en_con2F1 <- io_en_con2$byClass[, "F1"]
+io_en_con2_macroF1 <- mean(io_en_con2F1)
+
+im_en_con2 <- confusionMatrix(im_ensemble_pred, im_val$RiskLevel)
+im_en_con2F1 <- im_en_con2$byClass[, "F1"]
+im_en_con2_macroF1 <- mean(im_en_con2F1)
+
+Macro_averaged_en_F1 <- c(paste(round(uniq_en_con2_macroF1*100,2),"%"),
+                       paste(round(io_en_con2_macroF1*100,2),"%"),
+                      paste(round(im_en_con2_macroF1*100,2),"%"))
+
+# Creating a data frame that compares results of ensembles on the three data sets
+
+En_compare <- data.frame(
+  Accuracy = Accuracy_en,
+  Recall_High_Risk = Recall_High_Risk_en,
+  Macro_averaged_F1 = Macro_averaged_en_F1
+)
+
+# Setting row names
+
+rownames(En_compare) <- c("Original dataset (no imputations)", 
+                           "Imputed Outliers dataset", 
+                           "Imputed Missing values dataset")
+
+# Print the data frame
+
+cat("Accuracy and Recall (for high risk) of three individual models after cross validation & hyperparameter tuning:")
+
+print(all_compare_accuracy)
+
+print(all_compare_recall)
+
+cat("Accuracy and Recall (for high risk) of ensemble:")
+
+print(En_compare)
+
+```
+
+We observe that the ensemble model performed with better or at par accuracy than all models for almost all data sets. Within the ensemble models created, the Original model has higher recall while Imputed Outliers has higher accuracy. I would consider the Original data set ensemble model best out of all three due to higher recall metric at the cost of slightly lower accuracy metric.
+
+We further see that the ensemble shows high recall, though the Original data set logistic regression model for recall (for high risk) still performs the best. (As identified earlier when comparing all models with each other)
+
+Overall, we can conclude that for the maternal health risk data set:
+1. Original data set Logistic regression model performed best for Recall (fo high risk cases)
+2. Imputed outliers ensemble model performed with highest accuracy out of all models and data sets.
+
+In a practical setting, I would employ the Original data set logistic regression model since I consider recall (for high risk) a more important performance metric than accuracy based on our data set, because our dataset has majority low risk cases and training on them might have influenced performance of models on mid and high risk cases.
